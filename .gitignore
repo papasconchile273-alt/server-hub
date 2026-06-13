@@ -1,0 +1,26 @@
+# Credenciales y secretos — NUNCA subir al repo
+google_credentials.json
+.env
+*.env
+
+# Base de datos local (en Render el disco es efímero; no versionar datos)
+*.db
+publicaciones.db
+
+# Logs
+*.log
+watcher.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# SO / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>Server Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=DM+Mono:wght@400;500&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #060608;
+    --surface: #0d0d10;
+    --border:  #1e1a1a;
+    --red:     #c0392b;
+    --red2:    #e74c3c;
+    --gold:    #d4a843;
+    --pearl:   #e8e0d0;
+    --text:    #ccc4b8;
+    --muted:   #3d3530;
+    --tiktok:  #69c9d0;
+    --ig:      #e1306c;
+    --fb:      #4a90d9;
+    --success: #7ec88a;
+    --radius:  6px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    letter-spacing: .2px;
+    min-height: 100vh;
+  }
+
+  .bg-gato {
+    position: fixed; inset: 0;
+    background: url('/static/gato_fondo.png') center center / cover no-repeat;
+    opacity: 0.04;
+    pointer-events: none;
+    z-index: 0;
+    filter: grayscale(60%);
+  }
+
+  .bg-grid {
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(192,57,43,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(192,57,43,.03) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(192,57,43,.005) 2px, rgba(192,57,43,.005) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 10;
+  }
+
+  .logo {
+    font-family: 'Cinzel', serif;
+    font-size: 24px;
+    color: var(--pearl);
+    letter-spacing: 3px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+  }
+  .logo span { color: var(--red); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  /* Status bar creativa */
+  .status-bar {
+    font-family: 'DM Mono', monospace;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+  .status-info { line-height: 1.3; }
+  .status-count {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--pearl);
+    line-height: 1;
+  }
+  .status-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  /* Timeout bar — barra de inactividad */
+  .timeout-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .timeout-track {
+    width: 60px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .timeout-fill {
+    height: 100%;
+    background: var(--success);
+    border-radius: 2px;
+    width: 100%;
+    transition: width 1s linear, background .5s;
+  }
+  .timeout-fill.warn  { background: var(--gold); }
+  .timeout-fill.crit  { background: var(--red); }
+
+  /* Botón logout — solo ícono ⏻ */
+  .btn-logout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px; height: 32px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color .2s, color .2s;
+    font-size: 15px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+  /* ── LAYOUT ── */
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 28px;
+  }
+
+  h2 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* ── TARJETAS ── */
+  .pub-list { display: flex; flex-direction: column; gap: 14px; }
+
+  .pub-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--muted);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    transition: border-left-color .2s, transform .2s, box-shadow .2s;
+    box-shadow: 0 1px 0 rgba(255,255,255,.02);
+  }
+  .pub-card:hover {
+    transform: translateX(4px);
+    border-left-color: var(--red);
+    box-shadow: -4px 0 12px rgba(192,57,43,.08), 0 2px 8px rgba(0,0,0,.3);
+  }
+  .pub-card.pausado   { border-left-color: var(--muted); opacity: .6; }
+  .pub-card.publicado { border-left-color: var(--success); }
+  .pub-card.programado { border-left-color: var(--red); }
+  .pub-card.error { border-left-color: #e67e22; background: rgba(230,126,34,.04); }
+
+  .pub-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .fecha {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--pearl);
+    background: rgba(232,224,208,.06);
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: default;
+  }
+
+  .badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+  .badge.instagram { background: rgba(225,48,108,.15); color: var(--ig); }
+  .badge.facebook  { background: rgba(74,144,217,.15);  color: var(--fb); }
+  .badge.tiktok    { background: rgba(105,201,208,.15); color: var(--tiktok); }
+
+  .estado-badge {
+    margin-left: auto;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid;
+  }
+  .estado-badge.programado { color: var(--red);     border-color: var(--red); }
+  .estado-badge.pausado    { color: var(--muted);   border-color: var(--muted); }
+  .estado-badge.publicado  { color: var(--success); border-color: var(--success); }
+  .estado-badge.error      { color: #e67e22; border-color: #e67e22; }
+
+  .pub-texto {
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 14px;
+    font-size: 13.5px;
+  }
+
+  /* ── THUMBNAIL ── */
+  .pub-archivo { margin-bottom: 12px; }
+
+  .thumb-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(232,224,208,.04);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    text-decoration: none;
+    transition: border-color .2s;
+  }
+  .thumb-wrap:hover { border-color: var(--red); }
+
+  .thumb-img {
+    width: 48px; height: 48px;
+    object-fit: cover;
+    border-radius: 3px;
+    display: block;
+    background: var(--border);
+  }
+  .thumb-fallback {
+    width: 48px; height: 48px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: var(--border);
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .thumb-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── BOTONES ── */
+  .pub-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    border: 1px solid;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    transition: background .15s, color .15s, border-color .15s;
+    text-decoration: none;
+    display: inline-block;
+    background: transparent;
+    font-family: 'Roboto', sans-serif;
+  }
+  .btn-edit  { color: var(--pearl); border-color: var(--border); }
+  .btn-edit:hover { background: var(--pearl); color: var(--bg); border-color: var(--pearl); }
+  .btn-del   { color: var(--red2); border-color: rgba(192,57,43,.3); }
+  .btn-del:hover { background: var(--red); color: var(--pearl); border-color: var(--red); }
+  .btn-pause { color: var(--muted); border-color: var(--border); }
+  .btn-pause:hover { border-color: var(--muted); color: var(--text); }
+  .btn-now { color: var(--success); border-color: rgba(126,200,138,.3); }
+  .btn-now:hover { background: var(--success); color: var(--bg); border-color: var(--success); }
+  .btn-primary {
+    color: var(--pearl); background: var(--red);
+    border-color: var(--red);
+    font-size: 12px; padding: 10px 20px;
+  }
+  .btn-primary:hover { background: var(--red2); border-color: var(--red2); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(6,6,8,.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--red);
+    border-radius: var(--radius);
+    padding: 28px;
+    width: 100%;
+    max-width: 480px;
+    animation: modalIn .25s cubic-bezier(.16,1,.3,1) both;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: translateY(-12px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .modal h3 {
+    font-family: 'DM Mono', monospace;
+    color: var(--pearl);
+    font-size: 12px;
+    font-weight: 400;
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ── PANEL NUEVO POST ── */
+  .panel-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--red);
+    border-radius: var(--radius);
+    padding: 22px;
+    height: fit-content;
+    position: sticky;
+    top: 80px;
+  }
+
+  label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  input[type="text"],
+  input[type="datetime-local"],
+  textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--pearl);
+    padding: 10px 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    margin-bottom: 16px;
+    transition: border-color .2s;
+    outline: none;
+  }
+  input:focus, textarea:focus { border-color: var(--red); }
+  textarea { resize: vertical; min-height: 90px; font-family: 'Roboto', sans-serif; }
+
+  .plataformas-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .plat-check { display: none; }
+  .plat-label {
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    transition: all .15s;
+    color: var(--muted);
+  }
+  .plat-check:checked + .plat-label { border-color: currentColor; }
+  .plat-check.ig:checked + .plat-label { color: var(--ig);     background: rgba(225,48,108,.12); }
+  .plat-check.fb:checked + .plat-label { color: var(--fb);     background: rgba(74,144,217,.12); }
+  .plat-check.tt:checked + .plat-label { color: var(--tiktok); background: rgba(105,201,208,.12); }
+
+  .char-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    margin-top: -12px;
+    margin-bottom: 16px;
+  }
+  .char-count.over { color: var(--red2); }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+  }
+
+  /* ── EASTER EGG TOAST ── */
+  #easter-toast {
+    position: fixed;
+    bottom: 32px; right: 32px;
+    background: var(--surface);
+    border: 1px solid var(--red);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--pearl);
+    z-index: 500;
+    display: none;
+    max-width: 260px;
+    line-height: 1.6;
+    text-align: center;
+  }
+  #easter-toast.show {
+    display: block;
+    animation: easterIn .4s cubic-bezier(.16,1,.3,1) both;
+  }
+  @keyframes easterIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  #easter-toast .icon { font-size: 28px; display: block; margin-bottom: 6px; }
+  #easter-toast .sub  { color: var(--muted); font-size: 10px; margin-top: 6px; display: block; }
+</style>
+</head>
+<body>
+
+<div class="bg-gato"></div>
+<div class="bg-grid"></div>
+
+<header>
+  <div class="logo" id="logo-trigger">SERVER <span>HUB</span></div>
+  <div class="header-right">
+
+    <div class="status-bar">
+      <span class="status-dot"></span>
+      <div class="status-info">
+        <div class="status-count">{{ publicaciones|length }}</div>
+        <div class="status-label">en transmisión</div>
+      </div>
+    </div>
+
+    <!-- Barra de timeout de inactividad -->
+    <div class="timeout-bar-wrap" title="Sesión activa">
+      <div class="timeout-track">
+        <div class="timeout-fill" id="timeout-fill"></div>
+      </div>
+      <span id="timeout-label">60:00</span>
+    </div>
+
+    <!-- Solo ícono ⏻, sin texto -->
+    <a href="/logout" class="btn-logout" title="Cerrar sesión">⏻</a>
+
+  </div>
+</header>
+
+<main>
+
+  <section>
+    <h2>Cola de publicaciones</h2>
+
+    {% if publicaciones %}
+    <div class="pub-list">
+      {% for pub in publicaciones %}
+      <div class="pub-card {{ pub.estado|lower }}" id="card-{{ pub.id }}">
+
+        <div class="pub-meta">
+          <span class="fecha">{{ pub.fecha_hora }}</span>
+          {% for p in pub.plataformas %}
+          <span class="badge {{ p }}">{{ p }}</span>
+          {% endfor %}
+          <span class="estado-badge {{ pub.estado|lower }}">{{ pub.estado }}</span>
+        </div>
+
+        <div class="pub-texto">{{ pub.texto }}</div>
+
+        {% if pub.archivo %}
+        <div class="pub-archivo">
+          <a class="thumb-wrap"
+             href="https://drive.google.com/file/d/{{ pub.archivo }}/view"
+             target="_blank" rel="noopener">
+            <img
+              class="thumb-img"
+              src="https://drive.google.com/thumbnail?id={{ pub.archivo }}&sz=w96"
+              alt="preview"
+              loading="lazy"
+              width="48" height="48"
+              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">
+            <span class="thumb-fallback">🖼</span>
+            <span class="thumb-name">{{ pub.archivo }}</span>
+          </a>
+        </div>
+        {% endif %}
+
+        <div class="pub-actions">
+          <button class="btn btn-edit"
+            onclick="abrirEditar({{ pub.id }}, {{ pub.plataformas|tojson }}, {{ pub.texto|tojson }}, {{ pub.fecha_hora|tojson }}, {{ (pub.archivo or '')|tojson }})">
+            Editar
+          </button>
+          <form action="/eliminar/{{ pub.id }}" method="POST" style="display:inline;"
+                onsubmit="return confirm('¿Eliminar esta publicación?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-del">Eliminar</button>
+          </form>
+          {% if pub.estado == 'Programado' %}
+          <button class="btn btn-now" onclick="publicarAhora({{ pub.id }}, this)">
+            ▶ Publicar ya
+          </button>
+          <button class="btn btn-pause" onclick="toggleEstado({{ pub.id }}, 'Pausado', this)">
+            Pausar
+          </button>
+          {% elif pub.estado == 'Pausado' %}
+          <button class="btn btn-pause" onclick="toggleEstado({{ pub.id }}, 'Programado', this)">
+            Reactivar
+          </button>
+          {% elif pub.estado == 'Error' %}
+          <button class="btn btn-now" onclick="publicarAhora({{ pub.id }}, this)">
+            ↺ Reintentar
+          </button>
+          {% endif %}
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+      // COLA VACÍA — agrega tu primera publicación →
+    </div>
+    {% endif %}
+  </section>
+
+  <aside>
+    <h2>Nueva publicación</h2>
+    <div class="panel-form">
+      <form action="/agregar" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label>Plataformas</label>
+        <div class="plataformas-grid">
+          <div>
+            <input type="checkbox" name="plataformas" value="instagram" id="ig" class="plat-check ig">
+            <label for="ig" class="plat-label">IG</label>
+          </div>
+          <div>
+            <input type="checkbox" name="plataformas" value="facebook" id="fb" class="plat-check fb">
+            <label for="fb" class="plat-label">FB</label>
+          </div>
+          <div>
+            <input type="checkbox" name="plataformas" value="tiktok" id="tt" class="plat-check tt">
+            <label for="tt" class="plat-label">TT</label>
+          </div>
+        </div>
+
+        <label>Fecha y hora</label>
+        <input type="datetime-local" name="fecha_hora" required step="60" style="color-scheme: dark;">
+
+        <label>Contenido</label>
+        <textarea name="texto" id="texto-nuevo" maxlength="63206"
+          oninput="contarChars(this, 'count-nuevo')"
+          placeholder="Redacta el contenido de tu publicación..."></textarea>
+        <div class="char-count" id="count-nuevo">0 / 2200</div>
+
+        <label>Archivo (ID de Drive, opcional)</label>
+        <input type="text" name="archivo" placeholder="Identificador del archivo en Drive">
+
+        <button type="submit" class="btn btn-primary" style="width:100%">
+          + Agregar a la cola
+        </button>
+
+      </form>
+    </div>
+  </aside>
+
+</main>
+
+<!-- ── MODAL EDITAR ── -->
+<div class="modal-overlay" id="modal-editar">
+  <div class="modal">
+    <h3>// Editar publicación</h3>
+    <form id="form-editar" action="" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label>Plataformas</label>
+      <div class="plataformas-grid">
+        <div>
+          <input type="checkbox" name="plataformas" value="instagram" id="e-ig" class="plat-check ig">
+          <label for="e-ig" class="plat-label">IG</label>
+        </div>
+        <div>
+          <input type="checkbox" name="plataformas" value="facebook" id="e-fb" class="plat-check fb">
+          <label for="e-fb" class="plat-label">FB</label>
+        </div>
+        <div>
+          <input type="checkbox" name="plataformas" value="tiktok" id="e-tt" class="plat-check tt">
+          <label for="e-tt" class="plat-label">TT</label>
+        </div>
+      </div>
+
+      <label>Fecha y hora</label>
+      <input type="datetime-local" name="fecha_hora" id="e-fecha" required step="60" style="color-scheme: dark;">
+
+      <label>Contenido</label>
+      <textarea name="texto" id="e-texto" maxlength="63206"
+        oninput="contarChars(this, 'count-editar')"></textarea>
+      <div class="char-count" id="count-editar">0 / 2200</div>
+
+      <label>Archivo (ID de Drive, opcional)</label>
+      <input type="text" name="archivo" id="e-archivo" placeholder="Identificador del archivo en Drive">
+
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button type="submit" class="btn btn-primary" style="flex:1">Guardar</button>
+        <button type="button" class="btn btn-del" onclick="cerrarEditar()">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Toast de easter eggs -->
+<div id="easter-toast">
+  <span class="icon" id="e-icon"></span>
+  <span id="e-msg"></span>
+  <span class="sub" id="e-sub"></span>
+</div>
+
+<script>
+/* Token CSRF para las peticiones fetch */
+const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+
+/* ─── EDITAR (funcional) ─── */
+function abrirEditar(id, plataformas, texto, fechaHora, archivo) {
+  document.getElementById('form-editar').action = '/editar/' + id;
+  const map = { 'e-ig': 'instagram', 'e-fb': 'facebook', 'e-tt': 'tiktok' };
+  Object.entries(map).forEach(([elId, val]) => {
+    const el = document.getElementById(elId);
+    if (el) el.checked = plataformas.includes(val);
+  });
+  document.getElementById('e-fecha').value   = fechaHora.replace(' ', 'T');
+  document.getElementById('e-texto').value   = texto;
+  document.getElementById('e-archivo').value = archivo;
+  const div = document.getElementById('count-editar');
+  div.textContent = texto.length + ' / 2200';
+  div.classList.toggle('over', texto.length > 2200);
+  document.getElementById('modal-editar').classList.add('open');
+}
+
+function cerrarEditar() {
+  document.getElementById('modal-editar').classList.remove('open');
+}
+
+document.getElementById('modal-editar').addEventListener('click', function(e) {
+  if (e.target === this) cerrarEditar();
+});
+
+/* ─── CHARS dinámico según plataforma ─── */
+const LIMITES_PLAT = { instagram: 2200, tiktok: 2200, facebook: 63206 };
+
+function getLimiteActual(formId) {
+  const form = formId ? document.getElementById(formId) : document.querySelector('form');
+  const checks = form ? form.querySelectorAll('input[name="plataformas"]:checked') : [];
+  if (!checks.length) return 2200;
+  // El límite más restrictivo de las plataformas seleccionadas
+  let min = Infinity;
+  checks.forEach(c => { const l = LIMITES_PLAT[c.value] || 2200; if (l < min) min = l; });
+  return min === Infinity ? 2200 : min;
+}
+
+function contarChars(el, countId, formId) {
+  const limite = getLimiteActual(formId);
+  const n = el.value.length;
+  const div = document.getElementById(countId);
+  div.textContent = n + ' / ' + limite.toLocaleString();
+  div.classList.toggle('over', n > limite);
+}
+
+// Actualizar contador cuando cambia plataforma
+document.querySelectorAll('.plat-check').forEach(cb => {
+  cb.addEventListener('change', () => {
+    const form = cb.closest('form');
+    if (!form) return;
+    const textarea = form.querySelector('textarea');
+    const countDiv = form.querySelector('.char-count');
+    if (!textarea || !countDiv) return;
+    const limite = getLimiteActual(null);
+    countDiv.textContent = textarea.value.length + ' / ' + limite.toLocaleString();
+    countDiv.classList.toggle('over', textarea.value.length > limite);
+  });
+});
+
+/* ─── ESTADO ─── */
+function toggleEstado(id, nuevoEstado, btn) {
+  fetch('/estado/' + id, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+    body: JSON.stringify({estado: nuevoEstado})
+  })
+  .then(r => r.json())
+  .then(data => { if (data.ok) location.reload(); });
+}
+
+/* ─────────────────────────────────────
+   TIMEOUT DE INACTIVIDAD — frontend
+   Espejo visual del timeout del servidor
+   (5 minutos = 300 segundos)
+───────────────────────────────────── */
+const TIMEOUT_SEG = 3600;   // 60 min — igual que INACTIVIDAD_MAX en app.py
+let tiempoRestante = TIMEOUT_SEG;
+let timerInterval;
+
+function resetTimer() {
+  tiempoRestante = TIMEOUT_SEG;
+}
+
+function tickTimer() {
+  tiempoRestante = Math.max(0, tiempoRestante - 1);
+
+  const pct  = (tiempoRestante / TIMEOUT_SEG) * 100;
+  const fill = document.getElementById('timeout-fill');
+  const lbl  = document.getElementById('timeout-label');
+
+  fill.style.width = pct + '%';
+  fill.classList.toggle('warn', pct <= 40 && pct > 20);
+  fill.classList.toggle('crit', pct <= 20);
+
+  const m = Math.floor(tiempoRestante / 60);
+  const s = tiempoRestante % 60;
+  lbl.textContent = m + ':' + String(s).padStart(2, '0');
+
+  if (tiempoRestante === 0) {
+    clearInterval(timerInterval);
+    window.location.href = '/logout';
+  }
+}
+
+// Reiniciar en cualquier interacción
+['mousemove','keydown','click','scroll','touchstart'].forEach(ev => {
+  document.addEventListener(ev, resetTimer, { passive: true });
+});
+
+timerInterval = setInterval(tickTimer, 1000);
+
+/* ─── PUBLICAR AHORA ─── */
+function publicarAhora(id, btn) {
+  const original = btn.textContent;
+  btn.textContent = '...';
+  btn.disabled = true;
+  fetch('/publicar-ahora/' + id, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN}
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      btn.textContent = '✓ Enviado';
+      btn.style.color = 'var(--success)';
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      btn.textContent = '✗ Error';
+      btn.style.color = 'var(--red2)';
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2000);
+    }
+  })
+  .catch(() => {
+    btn.textContent = '✗ Error';
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2000);
+  });
+}
+
+/* ─────────────────────────────────────
+   AUDIO — Wanna Be Startin' Somethin'
+   Reproduce el clip real desde /static/
+   Pon tu archivo como: /static/mj_konami.mp3
+───────────────────────────────────── */
+let mjAudio = null;
+
+function reproducirMJ() {
+  try {
+    // Si ya está sonando, lo para y reinicia
+    if (mjAudio) {
+      mjAudio.pause();
+      mjAudio.currentTime = 0;
+    }
+    mjAudio = new Audio('/static/mj_konami.mp4');
+    mjAudio.volume = 0.8;
+    mjAudio.play().catch(() => { /* bloqueado por autoplay policy */ });
+  } catch(e) { /* silencio si no hay soporte */ }
+}
+
+/* ─────────────────────────────────────
+   EASTER EGGS
+   1. Konami code   → MJ moonwalk
+   2. Click logo    → Sabrina Carpenter
+   3. Doble click en .fecha → MJ glove
+───────────────────────────────────── */
+let easterBusy = false;
+
+function mostrarToast(icon, msg, sub, ms = 5000) {
+  if (easterBusy) return;
+  easterBusy = true;
+  document.getElementById('e-icon').textContent = icon;
+  document.getElementById('e-msg').innerHTML    = msg;
+  document.getElementById('e-sub').textContent  = sub;
+  const t = document.getElementById('easter-toast');
+  t.classList.remove('show');
+  void t.offsetWidth;          // reset animation
+  t.classList.add('show');
+  setTimeout(() => { t.classList.remove('show'); easterBusy = false; }, ms);
+}
+
+// 1. Konami → MJ
+const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown',
+                'ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+let ki = 0;
+document.addEventListener('keydown', e => {
+  ki = (e.key === KONAMI[ki]) ? ki + 1 : 0;
+  if (ki === KONAMI.length) {
+    ki = 0;
+    reproducirMJ();
+    mostrarToast('🕺',
+      "It\'s too high to get over —<br>too low to get under —<br>you\'re stuck in the middle<br>and the pain is thunder.",
+      '↑↑↓↓←→←→BA · Wanna Be Startin\' Somethin\' · M.J.', 7000);
+  }
+});
+
+// 2. Click en el logo → Sabrina Carpenter
+document.getElementById('logo-trigger').addEventListener('click', () => {
+  mostrarToast('🤍',
+    "Manchild, why you always<br>come a-runnin\' to me?<br>Fuck my life, won\'t you let<br>an innocent woman be?",
+    '— Sabrina Carpenter · Manchild');
+});
+
+// 3. Doble click en .fecha → guante MJ
+document.addEventListener('dblclick', e => {
+  if (e.target.classList.contains('fecha')) {
+    mostrarToast('🧤', '"In a world filled with hate,<br>we must still dare to hope."', '— Michael Jackson');
+  }
+});
+</script>
+
+</body>
+</html>
