@@ -1,0 +1,130 @@
+{
+  "name": "Server Hub -> FB / IG / TikTok",
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "version": 1,
+      "parameters": { "hook": null, "maxResults": 1 },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0 },
+        "restore": { "parameters": { "hook": { "label": "serverhub-posts" } } },
+        "notes": "Recibe el POST de Server Hub: texto, plataformas[], fecha_hora, archivo (Drive File ID), id. Tras importar: copia la URL y ponla en Render como MAKE_WEBHOOK_URL."
+      }
+    },
+    {
+      "id": 2,
+      "module": "google-drive:downloadAFile",
+      "version": 4,
+      "parameters": {},
+      "mapper": {
+        "select": "id",
+        "id": "{{1.archivo}}"
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 0 },
+        "notes": "Baja el archivo de Drive por su File ID. Salida = binario {{2.data}} + {{2.mimeType}}."
+      }
+    },
+    {
+      "id": 3,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "mapper": null,
+      "metadata": {
+        "designer": { "x": 600, "y": 0 },
+        "notes": "3 ramos. Cada filtro: join(plataformas) contains <red>."
+      },
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 4,
+              "module": "facebook-pages:createPhoto",
+              "version": 2,
+              "parameters": {},
+              "filter": {
+                "name": "Facebook",
+                "conditions": [
+                  [ { "a": "{{join(1.plataformas; \",\")}}", "o": "text:contains", "b": "facebook" } ]
+                ]
+              },
+              "mapper": {
+                "caption": "{{1.texto}}",
+                "photo": "{{2.data}}"
+              },
+              "metadata": {
+                "designer": { "x": 900, "y": -150 },
+                "notes": "Foto -> Upload a Photo. Para video: cambia a 'facebook-pages: Upload a Video' (Video = {{2.data}})."
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 5,
+              "module": "instagram-business:createMedia",
+              "version": 1,
+              "parameters": {},
+              "filter": {
+                "name": "Instagram",
+                "conditions": [
+                  [ { "a": "{{join(1.plataformas; \",\")}}", "o": "text:contains", "b": "instagram" } ]
+                ]
+              },
+              "mapper": {
+                "mediaType": "image",
+                "url": "https://drive.google.com/uc?export=download&id={{1.archivo}}",
+                "caption": "{{1.texto}}"
+              },
+              "metadata": {
+                "designer": { "x": 900, "y": 0 },
+                "notes": "IG exige URL publica (no binario). El archivo de Drive debe estar 'cualquiera con el enlace'. Para Reel: mediaType=video + modulo Create a Reel."
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 6,
+              "module": "tiktok:uploadVideo",
+              "version": 1,
+              "parameters": {},
+              "filter": {
+                "name": "TikTok",
+                "conditions": [
+                  [ { "a": "{{join(1.plataformas; \",\")}}", "o": "text:contains", "b": "tiktok" } ]
+                ]
+              },
+              "mapper": {
+                "video": "{{2.data}}",
+                "caption": "{{1.texto}}",
+                "privacy": "PUBLIC_TO_EVERYONE"
+              },
+              "metadata": {
+                "designer": { "x": 900, "y": 150 },
+                "notes": "Conector nativo TikTok = Make hace el OAuth, sin tu app audit. Si quieres API directa, reemplaza por 2 modulos HTTP (init + PUT bytes)."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false
+    },
+    "designer": { "orphans": [] }
+  }
+}

@@ -2,6 +2,8 @@
 google_credentials.json
 .env
 *.env
+# Blueprint con campo de token TikTok — peligroso si se exporta con credencial real
+make_blueprint_tiktok_http.json
 
 # Base de datos local (en Render el disco es efímero; no versionar datos)
 *.db
