@@ -203,18 +203,7 @@ def init_db():
                 estado      TEXT    DEFAULT 'Programado'
             )
         """)
-        if conn.execute("SELECT COUNT(*) FROM publicaciones").fetchone()[0] == 0:
-            conn.executemany(
-                "INSERT INTO publicaciones (plataformas, texto, fecha_hora, estado) VALUES (?,?,?,?)",
-                [
-                    (json.dumps(["instagram", "facebook"]),
-                     "Subido desde mi nuevo centro de mando oficial! 🔥 #Bodybuilding #Gains",
-                     "2026-06-07 18:30", "Programado"),
-                    (json.dumps(["tiktok"]),
-                     "Rutina de hypertrophy destructiva para forearms. 🦾",
-                     "2026-06-07 20:00", "Programado"),
-                ]
-            )
+        # Sin seeds: posts sin archivo rompen Drive en Make (BundleValidationError).
 
 init_db()
 
@@ -222,7 +211,7 @@ init_db()
 # HELPERS
 # ─────────────────────────────────────────
 
-def validar_post(plataformas, texto, fecha_hora):
+def validar_post(plataformas, texto, fecha_hora, archivo=None):
     errores = []
     if not plataformas:
         errores.append("Selecciona al menos una plataforma.")
@@ -235,6 +224,9 @@ def validar_post(plataformas, texto, fecha_hora):
                 errores.append(f"Texto demasiado largo para {p} ({len(texto)}/{limite} caracteres).")
     if not fecha_hora:
         errores.append("La fecha y hora son obligatorias.")
+    # IG/FB/TT exigen media — sin File ID de Drive el webhook a Make falla.
+    if plataformas and not archivo:
+        errores.append("Pega el File ID de Google Drive en el campo 'archivo'.")
     return errores
 
 def row_a_dict(row):
@@ -256,6 +248,8 @@ def enviar_a_make(publicacion):
     payload = {
         "texto":       publicacion["texto"],
         "plataformas": publicacion["plataformas"],
+        # Campo plano para filtrar en Make sin join() sobre array (más robusto).
+        "plataformas_str": ",".join(publicacion["plataformas"]),
         "fecha_hora":  publicacion["fecha_hora"],
         "archivo":     publicacion.get("archivo"),
         "id":          publicacion["id"],
@@ -332,8 +326,10 @@ def agregar():
     texto       = request.form.get("texto", "").strip()
     fecha_hora  = request.form.get("fecha_hora", "").strip().replace("T", " ")
     archivo     = request.form.get("archivo", "").strip() or None
-    errores = validar_post(plataformas, texto, fecha_hora)
+    errores = validar_post(plataformas, texto, fecha_hora, archivo)
     if errores:
+        for e in errores:
+            flash(e)
         return redirect(url_for("index"))
     with get_db() as conn:
         conn.execute(
@@ -349,8 +345,11 @@ def editar(pub_id):
     texto       = request.form.get("texto", "").strip()
     fecha_hora  = request.form.get("fecha_hora", "").strip().replace("T", " ")
     archivo     = request.form.get("archivo", "").strip() or None
-    errores = validar_post(plataformas, texto, fecha_hora)
-    if not errores:
+    errores = validar_post(plataformas, texto, fecha_hora, archivo)
+    if errores:
+        for e in errores:
+            flash(e)
+    else:
         with get_db() as conn:
             conn.execute(
                 """UPDATE publicaciones
