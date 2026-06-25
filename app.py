@@ -176,6 +176,10 @@ def logout():
 # URL del webhook de Make desde variable de entorno (no exponerla en el código).
 MAKE_WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL")
 
+# Clave para la API externa (bot de Telegram, etc.). Si no se configura,
+# el endpoint /api/programar queda deshabilitado (devuelve 401).
+API_KEY = os.getenv("API_KEY")
+
 LIMITES = {
     "instagram": 2200,
     "facebook":  63206,
@@ -416,6 +420,53 @@ def api_publicaciones():
             "SELECT * FROM publicaciones WHERE estado='Programado' ORDER BY fecha_hora ASC"
         ).fetchall()
     return jsonify([row_a_dict(r) for r in rows])
+
+def _api_key_valida():
+    """Auth para la API externa. Acepta header X-API-Key o Authorization: Bearer."""
+    if not API_KEY:
+        return False  # sin clave configurada => endpoint deshabilitado
+    enviada = request.headers.get("X-API-Key", "")
+    auth = request.headers.get("Authorization", "")
+    if not enviada and auth.startswith("Bearer "):
+        enviada = auth[7:]
+    return secrets.compare_digest(enviada, API_KEY)
+
+@app.route("/api/programar", methods=["POST"])
+@csrf.exempt
+@limiter.limit("30 per minute")
+def api_programar():
+    """Programa un post desde afuera (bot de Telegram, etc.). Entra a la cola
+    como 'Programado'; el scheduler lo publica solo a su fecha_hora."""
+    if not _api_key_valida():
+        return jsonify({"ok": False, "error": "No autorizado"}), 401
+
+    data = request.get_json(silent=True) or {}
+    plataformas = data.get("plataformas") or []
+    if isinstance(plataformas, str):
+        plataformas = [p.strip() for p in plataformas.split(",") if p.strip()]
+    texto      = (data.get("texto") or "").strip()
+    fecha_hora = (data.get("fecha_hora") or "").strip().replace("T", " ")
+    archivo    = (data.get("archivo") or "").strip() or None
+
+    errores = validar_post(plataformas, texto, fecha_hora, archivo)
+    if errores:
+        return jsonify({"ok": False, "errores": errores}), 400
+
+    # La fecha DEBE tener este formato exacto o el scheduler nunca la dispara.
+    try:
+        datetime.strptime(fecha_hora, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return jsonify({"ok": False,
+                        "error": "fecha_hora debe ser 'YYYY-MM-DD HH:MM' (hora México, UTC-5)"}), 400
+
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO publicaciones (plataformas, texto, fecha_hora, archivo) VALUES (?,?,?,?)",
+            (json.dumps(plataformas), texto, fecha_hora, archivo)
+        )
+        nuevo_id = cur.lastrowid
+    return jsonify({"ok": True, "id": nuevo_id, "estado": "Programado",
+                    "fecha_hora": fecha_hora, "plataformas": plataformas})
 
 # ─────────────────────────────────────────
 # ARRANQUE
